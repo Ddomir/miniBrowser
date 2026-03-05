@@ -5,17 +5,31 @@ class URL:
 
     # Split URL for obj
     def __init__(self, url):
-        self.scheme, url = url.split("://", 1)
         
-        # Support only http
-        assert self.scheme in ["http", "https"]
+        # data URLs
+        if url.startswith("data:"):
+            self.scheme = "data"
+            _, rest = url.split(":", 1)
+            self.mediatype, self.content = rest.split(",", 1)
+            self.host = self.port = self.path = None
+            return
 
-        # Choose port
+        # Other URLs
+        self.scheme, url = url.split("://", 1)
+
+        assert self.scheme in ["http", "https", "file"]
+
+        if self.scheme == "file":
+            self.path = url  # file:///path/to/file -> url = "/path/to/file"
+            self.host = None
+            self.port = None
+            return
+
         if self.scheme == "http":
             self.port = 80
         elif self.scheme == "https":
             self.port = 443
-        
+
         if "/" not in url:
             url = url + "/"
         self.host, url = url.split("/", 1)
@@ -27,6 +41,13 @@ class URL:
 
     # Request data from URL
     def request(self, headers=None):
+        if self.scheme == "data":
+            return self.content
+
+        if self.scheme == "file":
+            with open(self.path, "r", encoding="utf8") as f:
+                return f.read()
+
         s = socket.socket(
             family=socket.AF_INET,
             type=socket.SOCK_STREAM,
