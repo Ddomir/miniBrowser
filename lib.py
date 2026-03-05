@@ -1,3 +1,4 @@
+import gzip
 import socket
 import ssl
 import time
@@ -98,6 +99,7 @@ class URL:
         request += "Host: {}\r\n".format(self.host) # Request Host
         request += "Connection: keep-alive\r\n" # Connection Type
         request += "User-Agent: miniBrowser\r\n" # Browser Identifier
+        request += "Accept-Encoding: gzip\r\n"
         if headers:
             for header, value in headers.items():
                 request += "{}: {}\r\n".format(header, value)
@@ -131,7 +133,6 @@ class URL:
                 location = "{}://{}{}".format(self.scheme, self.host, location)
             return URL(location).request(headers=headers, redirect_limit=redirect_limit - 1)
 
-        assert "content-encoding" not in response_headers
         if response_headers.get("transfer-encoding") == "chunked":
             body = b""
             while True:
@@ -140,10 +141,14 @@ class URL:
                     break
                 body += response.read(chunk_size)
                 response.read(2)  # consume trailing \r\n after each chunk
-            content = body.decode("utf8")
         else:
             content_length = int(response_headers["content-length"])
-            content = response.read(content_length).decode("utf8")
+            body = response.read(content_length)
+
+        if response_headers.get("content-encoding") == "gzip":
+            body = gzip.decompress(body)
+
+        content = body.decode("utf8")
 
         # Cache the response if status is 200
         if status == "200":
