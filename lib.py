@@ -1,8 +1,13 @@
 import socket
 import ssl
+import time
 
 # Cache of open sockets keyed by (scheme, host, port)
 _socket_cache = {}
+
+# Cache of HTTP responses keyed by URL string: (content, expires_at)
+# expires_at is None for no expiry, or a timestamp from time.time()
+_response_cache = {}
 
 class URL:
 
@@ -62,6 +67,15 @@ class URL:
         if self.scheme == "file":
             with open(self.path, "r", encoding="utf8") as f:
                 return f.read()
+
+        # Check response cache
+        url_str = "{}://{}:{}{}".format(self.scheme, self.host, self.port, self.path)
+        if url_str in _response_cache:
+            content, expires_at = _response_cache[url_str]
+            if expires_at is None or time.time() < expires_at:
+                return content
+            else:
+                del _response_cache[url_str]
 
         cache_key = (self.scheme, self.host, self.port)
         s = _socket_cache.get(cache_key)
@@ -130,5 +144,18 @@ class URL:
         else:
             content_length = int(response_headers["content-length"])
             content = response.read(content_length).decode("utf8")
+
+        # Cache the response if status is 200
+        if status == "200":
+            cache_control = response_headers.get("cache-control", "")
+            directives = [d.strip() for d in cache_control.split(",")]
+            known = {"no-store", "max-age"}
+            directive_names = {d.split("=")[0].strip() for d in directives if d}
+            if not directive_names - known and "no-store" not in directive_names:
+                expires_at = None
+                for d in directives:
+                    if d.startswith("max-age="):
+                        expires_at = time.time() + int(d.split("=")[1])
+                _response_cache[url_str] = (content, expires_at)
 
         return content
