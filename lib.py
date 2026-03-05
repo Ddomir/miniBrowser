@@ -14,6 +14,14 @@ class URL:
             self.host = self.port = self.path = None
             return
 
+        # view-source URLs
+        if url.startswith("view-source:"):
+            self.scheme = "view-source"
+            inner = url[len("view-source:"):]
+            self.inner_url = URL(inner)
+            self.host = self.port = self.path = None
+            return
+
         # Other URLs
         self.scheme, url = url.split("://", 1)
 
@@ -27,6 +35,7 @@ class URL:
 
         if self.scheme == "http":
             self.port = 80
+
         elif self.scheme == "https":
             self.port = 443
 
@@ -43,6 +52,9 @@ class URL:
     def request(self, headers=None):
         if self.scheme == "data":
             return self.content
+
+        if self.scheme == "view-source":
+            return self.inner_url.request(headers=headers)
 
         if self.scheme == "file":
             with open(self.path, "r", encoding="utf8") as f:
@@ -65,7 +77,7 @@ class URL:
 
         #Headers
         request += "Host: {}\r\n".format(self.host) # Request Host
-        request += "Connection: HTTP/1.1\r\n" # Connection Type
+        request += "Connection: close\r\n" # Connection Type
         request += "User-Agent: miniBrowser\r\n" # Browser Identifier
         if headers:
             for header, value in headers.items():
