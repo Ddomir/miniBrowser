@@ -26,7 +26,7 @@ class URL:
             self.port = int(port)
 
     # Request data from URL
-    def request(self):
+    def request(self, headers=None):
         s = socket.socket(
             family=socket.AF_INET,
             type=socket.SOCK_STREAM,
@@ -41,7 +41,14 @@ class URL:
 
         # Format request
         request = "GET {} HTTP/1.0\r\n".format(self.path)
-        request += "Host: {}\r\n".format(self.host)
+
+        #Headers
+        request += "Host: {}\r\n".format(self.host) # Request Host
+        request += "Connection: HTTP/1.1\r\n" # Connection Type
+        request += "User-Agent: miniBrowser\r\n" # Browser Identifier
+        if headers:
+            for header, value in headers.items():
+                request += "{}: {}\r\n".format(header, value)
         request += "\r\n" # End of header
         
         # Convert to bytes and send
