@@ -1,5 +1,3 @@
-from lib import URL
-
 # Parse body
 def show(body):
     in_tag = False
@@ -24,24 +22,9 @@ def show(body):
                     print("&" + entity, end="")
                 in_entity = False
                 entity = ""
-                
+
         elif not in_tag:
             if c == "&":
                 in_entity = True
             else:
                 print(c, end="")
-
-
-
-# Get content from URL and show
-def load(url):
-    body = url.request()
-    if url.scheme == "view-source":
-        print(body)
-    else:
-        show(body)
-
-
-if __name__ == "__main__":
-    import sys
-    load(URL(sys.argv[1]))
