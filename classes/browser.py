@@ -27,6 +27,7 @@ class Browser:
 
         # Bind keys
         self.window.bind("<Down>", self.scrolldown)
+        self.window.bind("<Up>", self.scrollup)
 
     def load(self, url):
         body = url.request()
@@ -37,8 +38,14 @@ class Browser:
     def draw(self):
         self.canvas.delete("all")
         for x, y, c in self.display_list:
+            if y > self.scroll + HEIGHT: continue
+            if y + VSTEP < self.scroll: continue
             self.canvas.create_text(x, y - self.scroll, text=c)
 
     def scrolldown(self, e):
         self.scroll += SCROLL_STEP
+        self.draw()
+    
+    def scrollup(self, e):
+        self.scroll -= SCROLL_STEP
         self.draw()
