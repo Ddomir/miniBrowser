@@ -6,6 +6,10 @@ def layout(text):
     display_list = []
     cursor_x, cursor_y = HSTEP, VSTEP
     for c in text:
+        if c == "\n":
+            cursor_y += VSTEP * 2
+            cursor_x = HSTEP
+            continue
         display_list.append((cursor_x, cursor_y, c))
         cursor_x += HSTEP
         if cursor_x >= WIDTH - HSTEP:
@@ -28,6 +32,10 @@ class Browser:
         # Bind keys
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
+        self.window.bind("<MouseWheel>", self.on_mousewheel)
+        self.canvas.bind("<MouseWheel>", self.on_mousewheel)
+        self.window.bind("<Button-4>", self.on_mousewheel)
+        self.window.bind("<Button-5>", self.on_mousewheel)
 
     def load(self, url):
         body = url.request()
@@ -47,5 +55,21 @@ class Browser:
         self.draw()
     
     def scrollup(self, e):
-        self.scroll -= SCROLL_STEP
+        if self.scroll != 0:
+            self.scroll -= SCROLL_STEP
+
+        if self.scroll < 0:
+            self.scroll = 0
+        self.draw()
+
+    def on_mousewheel(self, e):
+        if e.num == 4:          # Linux scroll up
+            self.scroll -= SCROLL_STEP
+        elif e.num == 5:        # Linux scroll down
+            self.scroll += SCROLL_STEP
+        else:                   # macOS/Windows: delta is positive when scrolling up
+            delta = e.delta if abs(e.delta) > 1 else e.delta * SCROLL_STEP
+            self.scroll -= delta
+        if self.scroll < 0:
+            self.scroll = 0
         self.draw()
