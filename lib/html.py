@@ -1,8 +1,9 @@
 # Parse body
-def show(body):
+def lex(body):
     in_tag = False
     in_entity = False
     entity = ""
+    text = ""
 
     for c in body:
         if c == "<":
@@ -15,11 +16,11 @@ def show(body):
             entity += c
             if c == ";":
                 if entity == "lt;":
-                    print("<", end="")
+                    text += "<"
                 elif entity == "gt;":
-                    print(">", end="")
+                    text += ">"
                 else:
-                    print("&" + entity, end="")
+                    text += "&" + entity
                 in_entity = False
                 entity = ""
 
@@ -27,4 +28,6 @@ def show(body):
             if c == "&":
                 in_entity = True
             else:
-                print(c, end="")
+                text += c
+    
+    return text
