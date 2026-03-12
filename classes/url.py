@@ -57,6 +57,19 @@ class URL:
             self.host, port = self.host.split(":", 1)
             self.port = int(port)
 
+    def __str__(self):
+        if self.scheme == "data":
+            return "data:{},{}".format(self.mediatype, self.content)
+        if self.scheme == "view-source":
+            return "view-source:{}".format(self.inner_url)
+        if self.scheme == "file":
+            return "file://{}".format(self.path)
+        port_str = ":{}".format(self.port) if (
+            (self.scheme == "http" and self.port != 80) or
+            (self.scheme == "https" and self.port != 443)
+        ) else ""
+        return "{}://{}{}{}".format(self.scheme, self.host, port_str, self.path)
+
     # Request data from URL
     def request(self, headers=None, redirect_limit=10):
         if self.scheme == "data":

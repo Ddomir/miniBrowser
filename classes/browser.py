@@ -72,6 +72,7 @@ class Browser:
         body = url.request()
         self.text = lex(body)
         self.display_list = layout(self.text, self.canvas.winfo_width())
+        self.window.title(str(url))
         self.draw()
 
     def on_resize(self, e):
@@ -81,7 +82,7 @@ class Browser:
 
     def draw(self):
         self.canvas.delete("all")
-        self.image_refs = []  # prevent GC from collecting PhotoImages
+        self.image_refs = []
         height = self.canvas.winfo_height()
         width = self.canvas.winfo_width()
         for x, y, c, img_path in self.display_list:
