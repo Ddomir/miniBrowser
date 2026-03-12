@@ -62,11 +62,12 @@ class Browser:
         # Bind keys
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
-        self.window.bind("<MouseWheel>", self.on_mousewheel)
-        self.canvas.bind("<MouseWheel>", self.on_mousewheel)
+        self.window.bind_all("<MouseWheel>", self.on_mousewheel)
+        self.window.bind_all("<TouchpadScroll>", self.on_touchpad)
         self.window.bind("<Button-4>", self.on_mousewheel)
         self.window.bind("<Button-5>", self.on_mousewheel)
         self.window.bind("<Configure>", self.on_resize)
+        self.canvas.bind("<Button-1>", lambda _: self.canvas.focus_set())
 
     def load(self, url):
         body = url.request()
@@ -124,14 +125,23 @@ class Browser:
             self.scroll = 0
         self.draw()
 
+    def on_touchpad(self, e):
+        self.scroll -= int(e.delta / 5000)
+        if self.scroll < 0:
+            self.scroll = 0
+        if self.display_list:
+            max_y = max(y for _, y, *_ in self.display_list) + VSTEP
+            height = self.canvas.winfo_height()
+            self.scroll = min(self.scroll, max(0, max_y - height))
+        self.draw()
+
     def on_mousewheel(self, e):
-        if e.num == 4:          # Linux scroll up
+        if e.num == 4:
             self.scroll -= SCROLL_STEP
-        elif e.num == 5:        # Linux scroll down
+        elif e.num == 5:
             self.scroll += SCROLL_STEP
-        else:                   # macOS/Windows: delta is positive when scrolling up
-            delta = e.delta if abs(e.delta) > 1 else e.delta * SCROLL_STEP
-            self.scroll -= delta
+        else:
+            self.scroll -= e.delta * SCROLL_STEP
         if self.scroll < 0:
             self.scroll = 0
         if self.display_list:
