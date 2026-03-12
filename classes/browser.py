@@ -2,52 +2,6 @@ from lib import *
 import tkinter
 import os
 
-EMOJI_DIR = os.path.join(os.path.dirname(__file__), "../assets/openmoji")
-
-
-def emoji_path(c):
-    codepoint = "-".join(f"{ord(ch):04X}" for ch in c)
-    path = os.path.join(EMOJI_DIR, codepoint + ".png")
-    if os.path.exists(path):
-        return path
-    # fallback
-    path = os.path.join(EMOJI_DIR, f"{ord(c[0]):04X}.png")
-    return path if os.path.exists(path) else None
-
-def is_emoji(c):
-    cp = ord(c)
-    return (
-        0x1F300 <= cp <= 0x1FAFF or  # misc symbols, emoticons
-        0x2600  <= cp <= 0x27BF or   # misc symbols
-        0xFE00  <= cp <= 0xFE0F or   # variation selectors
-        0x1F000 <= cp <= 0x1F02F     # mahjong/dominos
-    )
-
-def layout(text, width=WIDTH):
-    display_list = []
-    cursor_x, cursor_y = HSTEP, VSTEP
-    for c in text:
-        if c == "\n":
-            cursor_y += VSTEP * 2
-            cursor_x = HSTEP
-            continue
-        if is_emoji(c):
-            path = emoji_path(c)
-            if path:
-                display_list.append((cursor_x, cursor_y, c, path))
-                cursor_x += VSTEP
-                if cursor_x >= width - HSTEP:
-                    cursor_y += VSTEP
-                    cursor_x = HSTEP
-                continue
-        display_list.append((cursor_x, cursor_y, c, None))
-        cursor_x += HSTEP
-        if cursor_x >= width - HSTEP:
-            cursor_y += VSTEP
-            cursor_x = HSTEP
-    return display_list
-
-
 class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
@@ -71,14 +25,14 @@ class Browser:
 
     def load(self, url):
         body = url.request()
-        self.text = lex(body)
-        self.display_list = layout(self.text, self.canvas.winfo_width())
+        self.tokens = lex(body)
+        self.display_list = Layout(self.tokens, self.canvas.winfo_width()).display_list
         self.window.title(str(url))
         self.draw()
 
     def on_resize(self, e):
-        if hasattr(self, "text"):
-            self.display_list = layout(self.text, e.width)
+        if hasattr(self, "tokens"):
+            self.display_list = Layout(self.tokens, e.width).display_list
             self.draw()
 
     def draw(self):
@@ -86,7 +40,7 @@ class Browser:
         self.image_refs = []
         height = self.canvas.winfo_height()
         width = self.canvas.winfo_width()
-        for x, y, c, img_path in self.display_list:
+        for x, y, word, f, img_path in self.display_list:
             if y > self.scroll + height: continue
             if y + VSTEP < self.scroll: continue
             if img_path:
@@ -96,7 +50,7 @@ class Browser:
                 self.image_refs.append(img)
                 self.canvas.create_image(x, y - self.scroll, image=img, anchor="nw")
             else:
-                self.canvas.create_text(x, y - self.scroll, text=c, anchor="nw")
+                self.canvas.create_text(x, y - self.scroll, text=word, font=f, anchor="nw")
 
         # Draw scrollbar
         if self.display_list:
