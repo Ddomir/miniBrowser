@@ -31,10 +31,16 @@ class URL:
             self.host = self.port = self.path = None
             return
 
-        # Other URLs
-        self.scheme, url = url.split("://", 1)
+        # about:blank and malformed URLs
+        try:
+            self.scheme, url = url.split("://", 1)
+        except ValueError:
+            self.scheme = "about"
 
-        assert self.scheme in ["http", "https", "file"]
+        if self.scheme == "about" or self.scheme not in ["http", "https", "file"]:
+            self.scheme = "about"
+            self.host = self.port = self.path = None
+            return
 
         if self.scheme == "file":
             self.path = url  # file:///path/to/file -> url = "/path/to/file"
@@ -58,6 +64,8 @@ class URL:
             self.port = int(port)
 
     def __str__(self):
+        if self.scheme == "about":
+            return "about:blank"
         if self.scheme == "data":
             return "data:{},{}".format(self.mediatype, self.content)
         if self.scheme == "view-source":
@@ -72,6 +80,9 @@ class URL:
 
     # Request data from URL
     def request(self, headers=None, redirect_limit=10):
+        if self.scheme == "about":
+            return ""
+
         if self.scheme == "data":
             return self.content
 
