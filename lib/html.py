@@ -33,7 +33,14 @@ class Text:
 
 class Tag:
     def __init__(self, tag):
-        self.tag = tag
+        parts = tag.split(None, 1)  # split on first whitespace
+        self.tag = parts[0].lower() if parts else ""
+        self.attrs = parts[1] if len(parts) > 1 else ""
+
+    def get_attr(self, name):
+        import re
+        m = re.search(r'{}=["\']([^"\']*)["\']'.format(name), self.attrs)
+        return m.group(1) if m else None
 
 
 
@@ -51,6 +58,8 @@ def lex(body):
                     buffer += "<"
                 elif entity == "gt;":
                     buffer += ">"
+                elif entity == "shy;":
+                    buffer += "\N{soft hyphen}"
                 else:
                     buffer += "&" + entity
                 in_entity = False
@@ -82,7 +91,9 @@ class Layout:
         self.style = "roman"
         self.width = width
         self.size = 12
+        self.centered = False
         self.line = [] # Size Calc Buffer
+        self.align_top = False
 
         for tok in tokens:
             self.token(tok)
@@ -96,13 +107,12 @@ class Layout:
             for word in tok.text.split():
                 self.word(word)
 
-        # Italic tags
+        # Style tags
         elif tok.tag == "i":
             self.style = "italic"
         elif tok.tag == "/i":
             self.style = "roman"
-
-        # Bold tags
+            
         elif tok.tag == "b":
             self.weight = "bold"
         elif tok.tag == "/b":
@@ -113,6 +123,7 @@ class Layout:
             self.size -= 2
         elif tok.tag == "/small":
             self.size += 2
+
         elif tok.tag == "big":
             self.size += 4
         elif tok.tag == "/big":
@@ -126,6 +137,20 @@ class Layout:
         elif tok.tag == "/p":
             self.flush()
             self.cursor_y += VSTEP
+
+        elif tok.tag == "h1":
+            self.flush()
+            self.size += 8
+            if tok.get_attr("class") == "title":
+                self.centered = True
+        elif tok.tag == "/h1":
+            self.size -= 8
+            self.flush()
+            self.centered = False
+            self.cursor_y += VSTEP
+
+        elif tok.tag == "sup":
+            self.align_top = True
 
 
 
@@ -143,11 +168,33 @@ class Layout:
         f = get_font(self.size, self.weight, self.style)
         w = f.measure(word)
 
+        # Handle soft hyphens
+        SHY = "\N{soft hyphen}"
+        if SHY in word and self.cursor_x + w > self.width - HSTEP:
+            chunks = word.split(SHY)
+            current = ""
+            for i, chunk in enumerate(chunks):
+                trial = current + chunk
+                trial_w = f.measure(trial + "-") if i < len(chunks) - 1 else f.measure(trial)
+                if self.cursor_x + trial_w > self.width - HSTEP and current:
+                    # Break here — draw current + hyphen, flush, continue with rest
+                    self.line.append((self.cursor_x, current + "-", f))
+                    self.cursor_x += f.measure(current + "-")
+                    self.flush()
+                    current = chunk
+                else:
+                    current = trial
+            if current:
+                clean = current.replace(SHY, "")
+                self.line.append((self.cursor_x, clean, f))
+                self.cursor_x += f.measure(clean) + f.measure(" ")
+            return
+
         if self.cursor_x + w > self.width - HSTEP:
             self.flush()
 
-        self.line.append((self.cursor_x, word, f))
-        self.cursor_x += w + f.measure(" ")
+        self.line.append((self.cursor_x, word.replace(SHY, ""), f))
+        self.cursor_x += f.measure(word.replace(SHY, "")) + f.measure(" ")
 
 
 
@@ -159,9 +206,18 @@ class Layout:
 
         baseline = self.cursor_y + 1.25 * max_ascent
 
-        for x, word, font in self.line:
-            y = baseline - font.metrics("ascent")
-            self.display_list.append((x, y, word, font, None))
+        if self.centered:
+            line_width = sum(font.measure(word) + font.measure(" ") for _, word, font in self.line)
+            start_x = (self.width - line_width) / 2
+            cx = start_x
+            for _, word, font in self.line:
+                y = baseline - font.metrics("ascent")
+                self.display_list.append((cx, y, word, font, None))
+                cx += font.measure(word) + font.measure(" ")
+        else:
+            for x, word, font in self.line:
+                y = baseline - font.metrics("ascent")
+                self.display_list.append((x, y, word, font, None))
         
         # Find how for to go down next
         max_descent = max([metric["descent"] for metric in metrics])
