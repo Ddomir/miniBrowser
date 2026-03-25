@@ -7,10 +7,13 @@ import time
 # Font cache
 FONTS = {}
 
-def get_font(size, weight, style):
-    key = (size, weight, style)
+def get_font(size, weight, style, family=None):
+    key = (size, weight, style, family)
     if key not in FONTS:
-        font = tkinter.font.Font(size=size, weight=weight, slant=style)
+        kwargs = dict(size=size, weight=weight, slant=style)
+        if family:
+            kwargs["family"] = family
+        font = tkinter.font.Font(**kwargs)
         label = tkinter.Label(font=font)
         FONTS[key] = (font, label)
     return FONTS[key][0]

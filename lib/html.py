@@ -103,6 +103,8 @@ class Layout:
         self.size = 12
         self.centered = False
         self.superscript = False
+        self.abbr = False
+        self.pre = False
         self.line = []
 
         for tok in tokens:
@@ -114,8 +116,11 @@ class Layout:
 
     def token(self, tok):
         if isinstance(tok, Text):
-            for word in tok.text.split():
-                self.word(word.upper() if self.superscript else word)
+            if self.pre:
+                self.pre_text(tok.text)
+            else:
+                for word in tok.text.split():
+                    self.word(word.upper() if self.superscript else word)
 
         # Style tags
         elif tok.tag == "i":
@@ -167,9 +172,52 @@ class Layout:
             self.superscript = False
             self.size *= 2
 
+        elif tok.tag == "abbr":
+            self.abbr = True
+        elif tok.tag == "/abbr":
+            self.abbr = False
 
+        elif tok.tag == "pre":
+            self.flush()
+            self.pre = True
+        elif tok.tag == "/pre":
+            self.flush()
+            self.pre = False
+            self.cursor_y += VSTEP
+
+
+
+    def pre_text(self, text):
+        f = get_font(self.size, self.weight, self.style, family="Courier New")
+        for c in text:
+            if c == "\n":
+                self.flush()
+                self.cursor_y += f.metrics("linespace")
+                self.cursor_x = HSTEP
+            else:
+                w = f.measure(c)
+                self.line.append(LineEntry(self.cursor_x, c, f, self.superscript))
+                self.cursor_x += w
 
     def word(self, word):
+        # Small caps for <abbr>: render character by character
+        if self.abbr:
+            for c in word:
+                if c.islower():
+                    f = get_font(max(1, self.size - 2), "bold", self.style)
+                    ch = c.upper()
+                else:
+                    f = get_font(self.size, self.weight, self.style)
+                    ch = c
+                w = f.measure(ch)
+                if self.cursor_x + w > self.width - HSTEP:
+                    self.flush()
+                self.line.append(LineEntry(self.cursor_x, ch, f, self.superscript))
+                self.cursor_x += w
+            # Add space after the word
+            self.cursor_x += get_font(self.size, self.weight, self.style).measure(" ")
+            return
+
         # Check if the word is a single emoji character
         if len(word) >= 1 and is_emoji(word[0]):
             path = emoji_path(word[0])
