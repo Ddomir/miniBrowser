@@ -1,5 +1,6 @@
-from lib.constants import *
-from lib.cache import get_font
+from .constants import WIDTH, HSTEP, VSTEP
+from .cache import get_font
+from .html import Text
 from dataclasses import dataclass
 from typing import Any
 import os
@@ -32,63 +33,6 @@ def is_emoji(c):
         0xFE00  <= cp <= 0xFE0F or
         0x1F000 <= cp <= 0x1F02F
     )
-
-
-
-class Text:
-    def __init__(self, text):
-        self.text = text
-
-
-
-class Tag:
-    def __init__(self, tag):
-        parts = tag.split(None, 1)  # split on first whitespace
-        self.tag = parts[0].lower() if parts else ""
-        self.attrs = parts[1] if len(parts) > 1 else ""
-
-    def get_attr(self, name):
-        import re
-        m = re.search(r'{}=["\']([^"\']*)["\']'.format(name), self.attrs)
-        return m.group(1) if m else None
-
-
-
-def lex(body):
-    out = []
-    buffer = ""
-    in_tag = False
-    in_entity = False
-    entity = ""
-    for c in body:
-        if in_entity:
-            entity += c
-            if c == ";":
-                if entity == "lt;":
-                    buffer += "<"
-                elif entity == "gt;":
-                    buffer += ">"
-                elif entity == "shy;":
-                    buffer += "\N{soft hyphen}"
-                else:
-                    buffer += "&" + entity
-                in_entity = False
-                entity = ""
-        elif c == "<":
-            in_tag = True
-            if buffer: out.append(Text(buffer))
-            buffer = ""
-        elif c == ">":
-            in_tag = False
-            out.append(Tag(buffer))
-            buffer = ""
-        elif not in_tag and c == "&":
-            in_entity = True
-        else:
-            buffer += c
-    if not in_tag and buffer:
-        out.append(Text(buffer))
-    return out
 
 
 
@@ -127,7 +71,7 @@ class Layout:
             self.style = "italic"
         elif tok.tag == "/i":
             self.style = "roman"
-            
+
         elif tok.tag == "b":
             self.weight = "bold"
         elif tok.tag == "/b":
@@ -143,7 +87,7 @@ class Layout:
             self.size += 4
         elif tok.tag == "/big":
             self.size -= 4
-        
+
         # Break tag
         elif tok.tag == "br":
             self.flush()
@@ -281,7 +225,7 @@ class Layout:
             for e in self.line:
                 y = (baseline - max_ascent) if e.superscript else (baseline - e.font.metrics("ascent"))
                 self.display_list.append((e.x, y, e.word, e.font, None))
-        
+
         # Find how for to go down next
         max_descent = max([metric["descent"] for metric in metrics])
         self.cursor_y = baseline + 1.25 * max_descent

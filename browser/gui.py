@@ -1,4 +1,6 @@
-from lib import *
+from .html import lex
+from .layout import Layout
+from .constants import WIDTH, HEIGHT, VSTEP, SCROLL_STEP
 import tkinter
 import os
 
@@ -6,7 +8,7 @@ class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
         self.canvas = tkinter.Canvas(
-            self.window, 
+            self.window,
             width=WIDTH,
             height=HEIGHT
         )
@@ -70,7 +72,7 @@ class Browser:
             height = self.canvas.winfo_height()
             self.scroll = min(self.scroll + SCROLL_STEP, max_y - height)
         self.draw()
-    
+
     def scrollup(self, e):
         if self.scroll != 0:
             self.scroll -= SCROLL_STEP
@@ -95,7 +97,7 @@ class Browser:
         elif e.num == 5:
             self.scroll += SCROLL_STEP
         else:
-            self.scroll -= e.delta * SCROLL_STEP
+            self.scroll -= int(e.delta / 3)
         if self.scroll < 0:
             self.scroll = 0
         if self.display_list:

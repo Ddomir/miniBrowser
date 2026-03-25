@@ -1,4 +1,5 @@
-from classes import *
+from browser import URL, Browser
+import tkinter
 
 if __name__ == "__main__":
     import sys

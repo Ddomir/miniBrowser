@@ -1,7 +1,7 @@
 import gzip
 import socket
 import ssl
-from lib.cache import get_cached_response, cache_response
+from .cache import get_cached_response, cache_response
 
 # Cache of open sockets keyed by (scheme, host, port)
 _socket_cache = {}
@@ -10,7 +10,7 @@ class URL:
 
     # Split URL for obj
     def __init__(self, url):
-        
+
         # data URLs
         if url.startswith("data:"):
             self.scheme = "data"
