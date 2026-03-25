@@ -1,3 +1,4 @@
+import re
 from .constants import SELF_CLOSING_TAGS
 
 class Text:
@@ -42,16 +43,37 @@ class HTMLParser:
         self.body = body
         self.unfinished = []
 
+    SCRIPT_END = re.compile(r"</script[\s\t\v\r/>]", re.IGNORECASE)
+
     def parse(self):
         text = ""
         in_tag = False
+        in_attr_quote = None  # None, '"', or "'"
         in_entity = False
         in_comment = False
+        in_script = False
         entity = ""
-        for i, c in enumerate(self.body):
-            if in_comment:
+        i = 0
+        while i < len(self.body):
+            c = self.body[i]
+            if in_script:
+                m = self.SCRIPT_END.search(self.body, i)
+                if m:
+                    end = self.body.index(">", m.start())
+                    self.add_tag(self.body[m.start()+1:end])
+                    i = end + 1
+                else:
+                    i = len(self.body)
+                in_script = False
+                text = ""
+                continue
+            elif in_comment:
                 if self.body[i:i+3] == "-->":
                     in_comment = False
+                    i += 3
+                else:
+                    i += 1
+                continue
             elif in_entity:
                 if c == ";":
                     text += resolve_entity(entity)
@@ -59,23 +81,38 @@ class HTMLParser:
                     entity = ""
                 else:
                     entity += c
+            elif in_tag and in_attr_quote:
+                if c == in_attr_quote:
+                    in_attr_quote = None
+                text += c
             elif c == "<":
                 if self.body[i:i+4] == "<!--":
                     in_comment = True
                     if text: self.add_text(text)
                     text = ""
+                    i += 4
+                    continue
                 else:
                     in_tag = True
                     if text: self.add_text(text)
                     text = ""
             elif c == ">":
                 in_tag = False
+                tag_name = text.split()[0].lower() if text.split() else ""
                 self.add_tag(text)
                 text = ""
+                if tag_name == "script":
+                    in_script = True
+                i += 1
+                continue
+            elif in_tag and c in ('"', "'"):
+                in_attr_quote = c
+                text += c
             elif not in_tag and c == "&":
                 in_entity = True
             else:
                 text += c
+            i += 1
         if not in_tag and text:
             self.add_text(text)
         return self.finish()
