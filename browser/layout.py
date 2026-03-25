@@ -23,8 +23,6 @@ def emoji_path(c):
     path = os.path.join(EMOJI_DIR, f"{ord(c[0]):04X}.png")
     return path if os.path.exists(path) else None
 
-
-
 def is_emoji(c):
     cp = ord(c)
     return (

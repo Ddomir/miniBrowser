@@ -10,7 +10,6 @@ class Text:
     def __repr__(self):
         return repr(self.text)
 
-
 class Element:
     """Tag or Text Node"""
     def __init__(self, tag, attributes, parent=None):
@@ -25,21 +24,6 @@ class Element:
     def __repr__(self):
         return "<" + self.tag + ">"
 
-
-
-def parse_attrs(raw):
-    """Parse 'tag attr1="val1" attr2="val2"' into (tag, {attr: val})."""
-    import re
-    parts = raw.split(None, 1)
-    tag = parts[0].lower() if parts else ""
-    attrs = {}
-    if len(parts) > 1:
-        for m in re.finditer(r'([\w-]+)(?:=["\']([^"\']*)["\'])?', parts[1]):
-            key = m.group(1).lower()
-            attrs[key] = m.group(2) or ""
-    return tag, attrs
-
-
 def resolve_entity(entity):
     """Get symbol for entity"""
     entities = {"lt": "<", "gt": ">", "amp": "&", "quot": '"',
@@ -47,7 +31,13 @@ def resolve_entity(entity):
     return entities.get(entity, "&" + entity + ";")
 
 
+
 class HTMLParser:
+    HEAD_TAGS = [
+        "base", "basefont", "bgsound", "noscript",
+        "link", "meta", "title", "style", "script",
+    ]
+
     def __init__(self, body):
         self.body = body
         self.unfinished = []
@@ -56,9 +46,13 @@ class HTMLParser:
         text = ""
         in_tag = False
         in_entity = False
+        in_comment = False
         entity = ""
-        for c in self.body:
-            if in_entity:
+        for i, c in enumerate(self.body):
+            if in_comment:
+                if self.body[i:i+3] == "-->":
+                    in_comment = False
+            elif in_entity:
                 if c == ";":
                     text += resolve_entity(entity)
                     in_entity = False
@@ -66,9 +60,14 @@ class HTMLParser:
                 else:
                     entity += c
             elif c == "<":
-                in_tag = True
-                if text: self.add_text(text)
-                text = ""
+                if self.body[i:i+4] == "<!--":
+                    in_comment = True
+                    if text: self.add_text(text)
+                    text = ""
+                else:
+                    in_tag = True
+                    if text: self.add_text(text)
+                    text = ""
             elif c == ">":
                 in_tag = False
                 self.add_tag(text)
@@ -83,6 +82,7 @@ class HTMLParser:
 
     def add_text(self, text):
         if text.isspace(): return # Ignore empty
+        self.implicit_tags(None)
 
         parent = self.unfinished[-1]
         node = Text(text, parent)
@@ -91,6 +91,7 @@ class HTMLParser:
     def add_tag(self, tag):
         tag, attributes = self.get_attributes(tag)
         if tag.startswith("!"): return # DOCTYPE
+        self.implicit_tags(tag)
 
         if tag.startswith("/"): # close
             if len(self.unfinished) == 1: return
@@ -109,6 +110,8 @@ class HTMLParser:
             self.unfinished.append(node)
 
     def finish(self):
+        if not self.unfinished:
+            self.implicit_tags(None)
         while len(self.unfinished) > 1:
             node = self.unfinished.pop()
             parent = self.unfinished[-1]
@@ -128,6 +131,27 @@ class HTMLParser:
                 attributes[attrpair.casefold()] = ""
         return tag, attributes
 
+    def implicit_tags(self, tag):
+        while True:
+            open_tags = [node.tag for node in self.unfinished]
+            if open_tags == [] and tag != "html": # Implicit HTML Start
+                self.add_tag("html")
+
+            elif open_tags == ["html"] and tag not in ["head", "body", "/html"]: # Implicit Head/Body
+                if tag in self.HEAD_TAGS:
+                    self.add_tag("head")
+                else:
+                    self.add_tag("body")
+
+            elif open_tags == ["html", "head"] and tag not in ["/head"] + self.HEAD_TAGS:
+                self.add_tag("/head")
+
+            else:
+                break
+
+
+
+
 def print_tree(node, indent=0, show_attrs=False):
     line = " " * indent + repr(node)
     if show_attrs and isinstance(node, Element) and node.attributes:
@@ -136,14 +160,3 @@ def print_tree(node, indent=0, show_attrs=False):
     print(line)
     for child in node.children:
         print_tree(child, indent + 2, show_attrs)
-
-
-if __name__ == "__main__":
-    import sys
-    from .url import URL
-    if len(sys.argv) < 2:
-        print("Usage: python3 -m browser.html <url>")
-        sys.exit(1)
-    body = URL(sys.argv[1]).request()
-    tree = HTMLParser(body).parse()
-    print_tree(tree)
