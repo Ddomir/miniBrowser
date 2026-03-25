@@ -37,7 +37,7 @@ def is_emoji(c):
 
 
 class Layout:
-    def __init__(self, tokens, width=WIDTH):
+    def __init__(self, tree, width=WIDTH):
         self.display_list = []
         self.cursor_x = HSTEP
         self.cursor_y = VSTEP
@@ -51,83 +51,91 @@ class Layout:
         self.pre = False
         self.line = []
 
-        for tok in tokens:
-            self.token(tok)
-
+        self.recurse(tree)
         self.flush() # Clear Buffer
 
 
-
-    def token(self, tok):
-        if isinstance(tok, Text):
-            if self.pre:
-                self.pre_text(tok.text)
-            else:
-                for word in tok.text.split():
-                    self.word(word.upper() if self.superscript else word)
-
+    def open_tag(self, tag, node=None):
         # Style tags
-        elif tok.tag == "i":
+        if tag == "i":
             self.style = "italic"
-        elif tok.tag == "/i":
-            self.style = "roman"
-
-        elif tok.tag == "b":
+        elif tag == "b":
             self.weight = "bold"
-        elif tok.tag == "/b":
-            self.weight = "normal"
 
         # Small/Big tags
-        elif tok.tag == "small":
+        elif tag == "small":
             self.size -= 2
-        elif tok.tag == "/small":
-            self.size += 2
-
-        elif tok.tag == "big":
+        elif tag == "big":
             self.size += 4
-        elif tok.tag == "/big":
-            self.size -= 4
 
         # Break tag
-        elif tok.tag == "br":
+        elif tag == "br":
             self.flush()
 
+        elif tag == "h1":
+            self.flush()
+            self.size += 8
+            if node and node.attributes.get("class") == "title":
+                self.centered = True
+
+        elif tag == "sup":
+            self.flush()
+            self.superscript = True
+            self.size = max(1, self.size // 2)
+
+        elif tag == "abbr":
+            self.abbr = True
+
+        elif tag == "pre":
+            self.flush()
+            self.pre = True
+
+    def close_tag(self, tag):
+        if tag == "i":
+            self.style = "roman"
+        elif tag == "b":
+            self.weight = "normal"
+
+        elif tag == "small":
+            self.size += 2
+        elif tag == "big":
+            self.size -= 4
+
         # Paragraph tag (newline)
-        elif tok.tag == "/p":
+        elif tag == "p":
             self.flush()
             self.cursor_y += VSTEP
 
-        elif tok.tag == "h1":
-            self.flush()
-            self.size += 8
-            if tok.get_attr("class") == "title":
-                self.centered = True
-        elif tok.tag == "/h1":
+        elif tag == "h1":
             self.size -= 8
             self.flush()
             self.centered = False
             self.cursor_y += VSTEP
 
-        elif tok.tag == "sup":
-            self.flush()
-            self.superscript = True
-            self.size = max(1, self.size // 2)
-        elif tok.tag == "/sup":
+        elif tag == "sup":
             self.superscript = False
             self.size *= 2
 
-        elif tok.tag == "abbr":
-            self.abbr = True
-        elif tok.tag == "/abbr":
+        elif tag == "abbr":
             self.abbr = False
 
-        elif tok.tag == "pre":
-            self.flush()
-            self.pre = True
-        elif tok.tag == "/pre":
+        elif tag == "pre":
             self.flush()
             self.pre = False
             self.cursor_y += VSTEP
+
+    def recurse(self, tree):
+        if isinstance(tree, Text):
+            if self.pre:
+                self.pre_text(tree.text)
+            else:
+                for word in tree.text.split():
+                    self.word(tree.text.upper() if self.superscript else word)
+        else:
+            self.open_tag(tree.tag, tree)
+            for child in tree.children:
+                self.recurse(child)
+            self.close_tag(tree.tag)
 
 
 
@@ -202,8 +210,6 @@ class Layout:
 
         self.line.append(LineEntry(self.cursor_x, word.replace(SHY, ""), f, self.superscript))
         self.cursor_x += f.measure(word.replace(SHY, "")) + f.measure(" ")
-
-
 
     def flush(self):
         if not self.line: return

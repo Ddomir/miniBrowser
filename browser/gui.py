@@ -1,5 +1,6 @@
-from .html import lex
+
 from .layout import Layout
+from .html import HTMLParser
 from .constants import WIDTH, HEIGHT, VSTEP, SCROLL_STEP
 import tkinter
 import os
@@ -27,14 +28,14 @@ class Browser:
 
     def load(self, url):
         body = url.request()
-        self.tokens = lex(body)
-        self.display_list = Layout(self.tokens, self.canvas.winfo_width()).display_list
+        self.nodes = HTMLParser(body).parse()
+        self.display_list = Layout(self.nodes, self.canvas.winfo_width()).display_list
         self.window.title(str(url))
         self.draw()
 
     def on_resize(self, e):
-        if hasattr(self, "tokens"):
-            self.display_list = Layout(self.tokens, e.width).display_list
+        if hasattr(self, "nodes"):
+            self.display_list = Layout(self.nodes, e.width).display_list
             self.draw()
 
     def draw(self):
