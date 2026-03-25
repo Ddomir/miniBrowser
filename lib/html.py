@@ -92,8 +92,8 @@ class Layout:
         self.width = width
         self.size = 12
         self.centered = False
-        self.line = [] # Size Calc Buffer
-        self.align_top = False
+        self.superscript = False
+        self.line = []
 
         for tok in tokens:
             self.token(tok)
@@ -105,7 +105,7 @@ class Layout:
     def token(self, tok):
         if isinstance(tok, Text):
             for word in tok.text.split():
-                self.word(word)
+                self.word(word.upper() if self.superscript else word)
 
         # Style tags
         elif tok.tag == "i":
@@ -150,7 +150,12 @@ class Layout:
             self.cursor_y += VSTEP
 
         elif tok.tag == "sup":
-            self.align_top = True
+            self.flush()
+            self.superscript = True
+            self.size = max(1, self.size // 2)
+        elif tok.tag == "/sup":
+            self.superscript = False
+            self.size *= 2
 
 
 
@@ -178,7 +183,7 @@ class Layout:
                 trial_w = f.measure(trial + "-") if i < len(chunks) - 1 else f.measure(trial)
                 if self.cursor_x + trial_w > self.width - HSTEP and current:
                     # Break here — draw current + hyphen, flush, continue with rest
-                    self.line.append((self.cursor_x, current + "-", f))
+                    self.line.append((self.cursor_x, current + "-", f, self.superscript))
                     self.cursor_x += f.measure(current + "-")
                     self.flush()
                     current = chunk
@@ -186,38 +191,38 @@ class Layout:
                     current = trial
             if current:
                 clean = current.replace(SHY, "")
-                self.line.append((self.cursor_x, clean, f))
+                self.line.append((self.cursor_x, clean, f, self.superscript))
                 self.cursor_x += f.measure(clean) + f.measure(" ")
             return
 
         if self.cursor_x + w > self.width - HSTEP:
             self.flush()
 
-        self.line.append((self.cursor_x, word.replace(SHY, ""), f))
+        self.line.append((self.cursor_x, word.replace(SHY, ""), f, self.superscript))
         self.cursor_x += f.measure(word.replace(SHY, "")) + f.measure(" ")
 
 
 
     def flush(self):
         if not self.line: return
-        # Get Tallest
-        metrics = [font.metrics() for x, word, font in self.line]
-        max_ascent = max([metric["ascent"] for metric in metrics])
+        # Get Tallest (only non-superscript fonts determine the baseline)
+        metrics = [f.metrics() for _, _, f, _ in self.line]
+        max_ascent = max(m["ascent"] for m in metrics)
 
         baseline = self.cursor_y + 1.25 * max_ascent
 
         if self.centered:
-            line_width = sum(font.measure(word) + font.measure(" ") for _, word, font in self.line)
+            line_width = sum(f.measure(word) + f.measure(" ") for _, word, f, _ in self.line)
             start_x = (self.width - line_width) / 2
             cx = start_x
-            for _, word, font in self.line:
-                y = baseline - font.metrics("ascent")
-                self.display_list.append((cx, y, word, font, None))
-                cx += font.measure(word) + font.measure(" ")
+            for _, word, f, sup in self.line:
+                y = (baseline - max_ascent) if sup else (baseline - f.metrics("ascent"))
+                self.display_list.append((cx, y, word, f, None))
+                cx += f.measure(word) + f.measure(" ")
         else:
-            for x, word, font in self.line:
-                y = baseline - font.metrics("ascent")
-                self.display_list.append((x, y, word, font, None))
+            for x, word, f, sup in self.line:
+                y = (baseline - max_ascent) if sup else (baseline - f.metrics("ascent"))
+                self.display_list.append((x, y, word, f, None))
         
         # Find how for to go down next
         max_descent = max([metric["descent"] for metric in metrics])
