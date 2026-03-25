@@ -105,6 +105,12 @@ class HTMLParser:
             parent.children.append(node)
 
         else: # open
+            # Auto-close <p> if another is being opened
+            if tag == "p" and self.unfinished and self.unfinished[-1].tag == "p":
+                self.add_tag("/p")
+            # Auto-close <li> (preserves nested lists)
+            elif tag == "li" and self.unfinished and self.unfinished[-1].tag == "li":
+                self.add_tag("/li")
             parent = self.unfinished[-1] if self.unfinished else None
             node = Element(tag, attributes, parent)
             self.unfinished.append(node)
