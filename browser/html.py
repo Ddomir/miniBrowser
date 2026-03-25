@@ -34,6 +34,8 @@ def resolve_entity(entity):
 
 
 class HTMLParser:
+    FORMATTING_TAGS = {"b", "i", "u", "s", "em", "strong", "small", "big", "sup", "abbr"}
+
     HEAD_TAGS = [
         "base", "basefont", "bgsound", "noscript",
         "link", "meta", "title", "style", "script",
@@ -132,6 +134,26 @@ class HTMLParser:
 
         if tag.startswith("/"): # close
             if len(self.unfinished) == 1: return
+            close_tag = tag[1:]
+            # if closing a formatting tag that isn't on top, implicitly close everything above it, close it, then re-open them.
+            if close_tag in self.FORMATTING_TAGS:
+                open_tags = [node.tag for node in self.unfinished]
+                if close_tag in open_tags and open_tags[-1] != close_tag:
+                    popped = []
+                    while self.unfinished[-1].tag != close_tag:
+                        top = self.unfinished[-1]
+                        if top.tag in self.FORMATTING_TAGS:
+                            popped.append(top)
+                        node = self.unfinished.pop()
+                        parent = self.unfinished[-1]
+                        parent.children.append(node)
+                    node = self.unfinished.pop()
+                    parent = self.unfinished[-1]
+                    parent.children.append(node)
+                    for reopen in reversed(popped):
+                        new_node = Element(reopen.tag, reopen.attributes, self.unfinished[-1])
+                        self.unfinished.append(new_node)
+                    return
             node = self.unfinished.pop()
             parent = self.unfinished[-1]
             parent.children.append(node)
