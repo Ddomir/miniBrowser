@@ -1,6 +1,5 @@
-
 from .layout import Layout
-from .html import HTMLParser
+from .html import HTMLParser, ViewSourceParser
 from .constants import WIDTH, HEIGHT, VSTEP, SCROLL_STEP
 import tkinter
 import os
@@ -28,6 +27,8 @@ class Browser:
 
     def load(self, url):
         body = url.request()
+        if url.scheme == "view-source":
+            body = ViewSourceParser(body).highlight()
         self.nodes = HTMLParser(body).parse()
         self.display_list = Layout(self.nodes, self.canvas.winfo_width()).display_list
         self.window.title(str(url))

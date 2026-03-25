@@ -194,8 +194,8 @@ class HTMLParser:
 
 
 
-
 def print_tree(node, indent=0, show_attrs=False):
+    """Used in debug-mode and debug-mode-attrs"""
     line = " " * indent + repr(node)
     if show_attrs and isinstance(node, Element) and node.attributes:
         attrs = " ".join(f'{k}="{v}"' if v else k for k, v in node.attributes.items())
@@ -203,3 +203,32 @@ def print_tree(node, indent=0, show_attrs=False):
     print(line)
     for child in node.children:
         print_tree(child, indent + 2, show_attrs)
+
+
+
+def _escape(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+class ViewSourceParser(HTMLParser):
+    """Subclass that walks parsed source HTML and emits syntax-highlighted HTML."""
+
+    def highlight(self):
+        out = ["<pre>"]
+        self._walk(self.parse(), out)
+        out.append("</pre>")
+        return "".join(out)
+
+    def _walk(self, node, out):
+        if isinstance(node, Text):
+            out.append("<b>" + _escape(node.text) + "</b>")
+        else:
+            # Reconstruct opening tag in normal font
+            attrs = "".join(
+                f' {k}="{_escape(v)}"' if v else f" {k}"
+                for k, v in node.attributes.items()
+            )
+            out.append(_escape(f"<{node.tag}{attrs}>"))
+            for child in node.children:
+                self._walk(child, out)
+            if node.tag not in SELF_CLOSING_TAGS:
+                out.append(_escape(f"</{node.tag}>"))
