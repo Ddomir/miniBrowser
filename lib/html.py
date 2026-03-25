@@ -1,6 +1,16 @@
 from lib.constants import *
 from lib.cache import get_font
+from dataclasses import dataclass
+from typing import Any
 import os
+
+
+@dataclass
+class LineEntry:
+    x: float
+    word: str
+    font: Any
+    superscript: bool = False
 
 EMOJI_DIR = os.path.join(os.path.dirname(__file__), "../assets/openmoji")
 
@@ -183,7 +193,7 @@ class Layout:
                 trial_w = f.measure(trial + "-") if i < len(chunks) - 1 else f.measure(trial)
                 if self.cursor_x + trial_w > self.width - HSTEP and current:
                     # Break here — draw current + hyphen, flush, continue with rest
-                    self.line.append((self.cursor_x, current + "-", f, self.superscript))
+                    self.line.append(LineEntry(self.cursor_x, current + "-", f, self.superscript))
                     self.cursor_x += f.measure(current + "-")
                     self.flush()
                     current = chunk
@@ -191,38 +201,38 @@ class Layout:
                     current = trial
             if current:
                 clean = current.replace(SHY, "")
-                self.line.append((self.cursor_x, clean, f, self.superscript))
+                self.line.append(LineEntry(self.cursor_x, clean, f, self.superscript))
                 self.cursor_x += f.measure(clean) + f.measure(" ")
             return
 
         if self.cursor_x + w > self.width - HSTEP:
             self.flush()
 
-        self.line.append((self.cursor_x, word.replace(SHY, ""), f, self.superscript))
+        self.line.append(LineEntry(self.cursor_x, word.replace(SHY, ""), f, self.superscript))
         self.cursor_x += f.measure(word.replace(SHY, "")) + f.measure(" ")
 
 
 
     def flush(self):
         if not self.line: return
-        # Get Tallest (only non-superscript fonts determine the baseline)
-        metrics = [f.metrics() for _, _, f, _ in self.line]
+        # Get Tallest
+        metrics = [e.font.metrics() for e in self.line]
         max_ascent = max(m["ascent"] for m in metrics)
 
         baseline = self.cursor_y + 1.25 * max_ascent
 
         if self.centered:
-            line_width = sum(f.measure(word) + f.measure(" ") for _, word, f, _ in self.line)
+            line_width = sum(e.font.measure(e.word) + e.font.measure(" ") for e in self.line)
             start_x = (self.width - line_width) / 2
             cx = start_x
-            for _, word, f, sup in self.line:
-                y = (baseline - max_ascent) if sup else (baseline - f.metrics("ascent"))
-                self.display_list.append((cx, y, word, f, None))
-                cx += f.measure(word) + f.measure(" ")
+            for e in self.line:
+                y = (baseline - max_ascent) if e.superscript else (baseline - e.font.metrics("ascent"))
+                self.display_list.append((cx, y, e.word, e.font, None))
+                cx += e.font.measure(e.word) + e.font.measure(" ")
         else:
-            for x, word, f, sup in self.line:
-                y = (baseline - max_ascent) if sup else (baseline - f.metrics("ascent"))
-                self.display_list.append((x, y, word, f, None))
+            for e in self.line:
+                y = (baseline - max_ascent) if e.superscript else (baseline - e.font.metrics("ascent"))
+                self.display_list.append((e.x, y, e.word, e.font, None))
         
         # Find how for to go down next
         max_descent = max([metric["descent"] for metric in metrics])
